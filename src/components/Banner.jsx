@@ -1,7 +1,8 @@
-import Image from 'next/image';
-import React from 'react';
-import bannerImage from '../assets/Moodly.png';
-import bannerImageMobile from '../assets/Moodly-mobile.png';
+"use client";
+import Image from "next/image";
+import React from "react";
+import bannerImage from "../assets/Moodly.png";
+import bannerImageMobile from "../assets/Moodly-mobile.png";
 
 const Banner = () => {
   return (
@@ -28,13 +29,22 @@ const Banner = () => {
         />
       </div>
 
-      {/* Text/Image Overlay */}
-      <div className="absolute inset-0 flex items-center justify-center z-10 p-4">
-        <div className="text-white text-center bg-black bg-opacity-50 rounded-lg p-6">
-          {/* Example image or text inside the overlay */}
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">Welcome to Moodly</h1>
-          <p className="text-lg md:text-xl">Detect your mood. Feel the theme. Hear the vibe.</p>
+      {/* Video Overlay */}
+      <div className="absolute inset-0 flex flex-col items-end justify-center z-10 p-4">
+        <div className="w-40 h-40 md:w-72 md:h-72 rounded-xl overflow-hidden shadow-lg opacity-50">
+          <video
+            src="/faceVideo.mp4"
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-full object-cover opacity-50"
+          />
         </div>
+      </div>
+      <div className="absolute inset-0 flex flex-col items-center justify-end z-20 text-white text-center p-4">
+        
+        <button className=" text-white font-bold  border-2 border-white  text-xl  rounded-full px-5 py-1 hover:scale-110   tran  ">Start</button>
       </div>
     </div>
   );
