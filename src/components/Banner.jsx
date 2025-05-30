@@ -3,6 +3,7 @@ import Image from "next/image";
 import React from "react";
 import bannerImage from "../assets/Moodly.png";
 import bannerImageMobile from "../assets/Moodly-mobile.png";
+import Link from "next/link";
 
 const Banner = () => {
   return (
@@ -44,7 +45,7 @@ const Banner = () => {
       </div>
       <div className="absolute inset-0 flex flex-col items-center justify-end z-20 text-white text-center p-4">
         
-        <button className=" text-white font-bold  border-2 border-white  text-xl  rounded-full px-5 py-1 hover:scale-110  ">Start</button>
+    <Link href={"webcam"}>    <button className=" text-white font-bold  border-2 border-white  text-xl  rounded-full px-5 py-1 hover:scale-110  ">Start</button></Link>
       </div>
     </div>
   );
