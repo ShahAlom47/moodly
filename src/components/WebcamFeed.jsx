@@ -2,6 +2,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import * as faceapi from "face-api.js";
+import detectionMessages from "../lib/funnyMessages"; // Adjust path
+import MessageDisplay from "./MessageDisplay";
 
 const WebcamFeed = () => {
   const videoRef = useRef(null);
@@ -10,8 +12,10 @@ const WebcamFeed = () => {
   const [mode, setMode] = useState("mood"); // mood | age
   const [result, setResult] = useState("");
   const [showCheck, setShowCheck] = useState(false);
-  const [currentMood, setCurrentMood] = useState("");
-  const [detectionLog, setDetectionLog] = useState([]);
+  const [funnyMsg, setFunnyMsg] = useState("");
+  const lastMessageRef = useRef("");
+  const [messageIndexMap, setMessageIndexMap] = useState({});
+
 
   useEffect(() => {
     const loadModels = async () => {
@@ -54,16 +58,28 @@ const WebcamFeed = () => {
     loadModels();
   }, []);
 
+  const getUniqueFunnyMessage = (messages) => {
+    console.log(messages," messages");
+    let newMsg = "";
+    const attempts = 5;
+    for (let i = 0; i < attempts; i++) {
+      const candidate = messages[Math.floor(Math.random() * messages.length)];
+      if (candidate !== lastMessageRef.current) {
+        newMsg = candidate;
+        break;
+      }
+    }
+    lastMessageRef.current = newMsg || messages[0];
+    return lastMessageRef.current;
+  };
+
   const detect = async () => {
     if (!videoRef.current) return;
 
     const detection = await faceapi
       .detectSingleFace(
         videoRef.current,
-        new faceapi.TinyFaceDetectorOptions({
-          inputSize: 512,
-          scoreThreshold: 0.5,
-        })
+        new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 })
       )
       .withFaceLandmarks()
       .withFaceExpressions()
@@ -72,6 +88,7 @@ const WebcamFeed = () => {
     if (!detection) {
       setResult("No face detected");
       setShowCheck(false);
+      setFunnyMsg("");
       return;
     }
 
@@ -84,22 +101,25 @@ const WebcamFeed = () => {
       );
       if (confidence > 0.7) {
         setResult(`${getEmoji(mood)} ${mood} (${(confidence * 100).toFixed(1)}%)`);
+        setFunnyMsg(detectionMessages.mood[mood] || "");
         setShowCheck(true);
       } else {
         setResult("Low confidence detection");
+        setFunnyMsg("");
         setShowCheck(false);
       }
     } else if (mode === "age") {
       const { age, gender } = detection;
-      setResult(`👤 ${gender}, Age: ${Math.round(age)}`);
+      const ageRounded = Math.round(age);
+      setResult(`👤 ${gender}, Age: ${ageRounded}`);
+      const messages = detectionMessages.age;
+      setFunnyMsg(getUniqueFunnyMessage(messages));
       setShowCheck(true);
     }
   };
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      detect();
-    }, 2000);
+    const interval = setInterval(() => detect(), 3000);
     return () => clearInterval(interval);
   }, [mode]);
 
@@ -116,67 +136,20 @@ const WebcamFeed = () => {
     return map[mood] || "👀";
   };
 
-  const handleVideoOnPlay = () => {
-    const canvas = document.getElementById("overlay");
-    const displaySize = { width: 720, height: 560 };
-
-    faceapi.matchDimensions(canvas, displaySize);
-
-    const interval = setInterval(async () => {
-      try {
-        if (!videoRef.current) return;
-
-        const detections = await faceapi
-          .detectSingleFace(
-            videoRef.current,
-            new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 })
-          )
-          .withFaceLandmarks()
-          .withFaceExpressions();
-
-        const ctx = canvas.getContext("2d");
-        ctx.clearRect(0, 0, canvas.width, canvas.height); // ✅ Clear canvas properly
-
-        if (!detections) {
-          setCurrentMood("No face detected");
-          setDetectionLog((prev) => [...prev, "No face found"]);
-          return;
-        }
-
-        const resizedDetections = faceapi.resizeResults(detections, displaySize);
-
-        faceapi.draw.drawDetections(canvas, resizedDetections);
-        faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
-
-        const expressions = detections.expressions;
-        const moods = Object.entries(expressions);
-        const [mood, confidence] = moods.reduce(
-          (max, [key, value]) => (value > max[1] ? [key, value] : max),
-          ["neutral", 0]
-        );
-
-        setDetectionLog((prev) => [...prev, `Detected: ${mood} (${confidence.toFixed(2)})`]);
-
-        if (confidence > 0.7) {
-          setCurrentMood(mood);
-        } else {
-          setCurrentMood("Low confidence detection");
-        }
-      } catch (err) {
-        console.error("Detection error:", err);
-        setDetectionLog((prev) => [...prev, `Error: ${err.message}`]);
-      }
-    }, 1500);
-
-    return () => clearInterval(interval);
+  const handleModeChange = (selectedMode) => {
+    setMode(selectedMode);
+    setResult("");
+    setFunnyMsg("");
+    setShowCheck(false);
+    lastMessageRef.current = "";
   };
 
+  const bgColor = mode === "mood" ? "bg-blue-50" : "bg-yellow-50";
+
   return (
-    <div className="flex flex-col items-center p-6 min-h-screen bg-gray-50">
+    <div className={`flex flex-col items-center p-6 min-h-screen transition-colors duration-500 ${bgColor}`}>
       {error && <p className="text-red-600 mb-4">{error}</p>}
-      {loading && !error && (
-        <p className="text-blue-500 font-semibold mb-4">Loading camera and models...</p>
-      )}
+      {loading && !error && <p className="text-blue-500 font-semibold mb-4">Loading camera and models...</p>}
 
       <div className="relative">
         <video
@@ -184,9 +157,8 @@ const WebcamFeed = () => {
           autoPlay
           muted
           playsInline
-          width="420"
-          height="210"
-          onPlay={handleVideoOnPlay}
+          width="720"
+          height="560"
           className={`rounded-lg shadow-md ${loading ? "opacity-0" : "opacity-100"}`}
         />
         <canvas
@@ -207,44 +179,46 @@ const WebcamFeed = () => {
 
       <div className="flex space-x-4 mt-4">
         <button
-          className={`px-6 py-2 rounded-full font-semibold hover:scale-110 z-10 relative ${
+          className={`px-6 py-2 rounded-full font-semibold hover:scale-110 transition-transform z-10 ${
             mode === "mood" ? "bg-blue-600 text-white" : "bg-gray-200"
           }`}
-          onClick={() => {
-            setMode("mood");
-            setResult("");
-            setShowCheck(false);
-          }}
+          onClick={() => handleModeChange("mood")}
         >
           Mood
         </button>
         <button
-          className={`px-6 py-2 rounded-full font-semibold ${
-            mode === "age" ? "bg-blue-600 text-white" : "bg-gray-200  z-10 relative"
+          className={`px-6 py-2 rounded-full font-semibold hover:scale-110 transition-transform z-10 ${
+            mode === "age" ? "bg-yellow-500 text-white" : "bg-gray-200"
           }`}
-          onClick={() => {
-            setMode("age");
-            setResult("");
-            setShowCheck(false);
-          }}
+          onClick={() => handleModeChange("age")}
         >
           Age
         </button>
       </div>
 
-      {result && (
-        <div className="mt-6 text-center">
-          <p className="text-xl font-bold text-gray-700">{result}</p>
-          {showCheck && (
-            <button
-              className="mt-3 px-6 py-2 bg-green-600 text-white rounded-full hover:bg-green-700"
-              onClick={detect}
-            >
-              Check Again
-            </button>
-          )}
-        </div>
-      )}
+   {result && (
+  <div className="mt-6 text-center max-w-md">
+    <p className="text-xl font-bold text-gray-700">{result}</p>
+    {funnyMsg && (
+      <>
+       
+        <MessageDisplay
+          type={mode}
+          moodType={mode === "mood" ? result.split(" ")[1] : undefined}
+        />
+      </>
+    )}
+
+    {showCheck && (
+      <button
+        className="mt-4 px-6 py-2 bg-green-600 text-white rounded-full hover:bg-green-700"
+        onClick={detect}
+      >
+        Check Again
+      </button>
+    )}
+  </div>
+)}
     </div>
   );
 };
