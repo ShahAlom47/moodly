@@ -10,6 +10,8 @@ const WebcamFeed = () => {
   const [mode, setMode] = useState("mood"); // mood | age
   const [result, setResult] = useState("");
   const [showCheck, setShowCheck] = useState(false);
+  const [currentMood, setCurrentMood] = useState("");
+  const [detectionLog, setDetectionLog] = useState([]);
 
   useEffect(() => {
     const loadModels = async () => {
@@ -32,8 +34,8 @@ const WebcamFeed = () => {
       navigator.mediaDevices
         .getUserMedia({
           video: {
-            width: 720,
-            height: 560,
+            width: 420,
+            height: 210,
             facingMode: "user",
           },
         })
@@ -58,7 +60,10 @@ const WebcamFeed = () => {
     const detection = await faceapi
       .detectSingleFace(
         videoRef.current,
-        new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 })
+        new faceapi.TinyFaceDetectorOptions({
+          inputSize: 512,
+          scoreThreshold: 0.5,
+        })
       )
       .withFaceLandmarks()
       .withFaceExpressions()
@@ -111,6 +116,61 @@ const WebcamFeed = () => {
     return map[mood] || "👀";
   };
 
+  const handleVideoOnPlay = () => {
+    const canvas = document.getElementById("overlay");
+    const displaySize = { width: 720, height: 560 };
+
+    faceapi.matchDimensions(canvas, displaySize);
+
+    const interval = setInterval(async () => {
+      try {
+        if (!videoRef.current) return;
+
+        const detections = await faceapi
+          .detectSingleFace(
+            videoRef.current,
+            new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 })
+          )
+          .withFaceLandmarks()
+          .withFaceExpressions();
+
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // ✅ Clear canvas properly
+
+        if (!detections) {
+          setCurrentMood("No face detected");
+          setDetectionLog((prev) => [...prev, "No face found"]);
+          return;
+        }
+
+        const resizedDetections = faceapi.resizeResults(detections, displaySize);
+
+        faceapi.draw.drawDetections(canvas, resizedDetections);
+        faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+
+        const expressions = detections.expressions;
+        const moods = Object.entries(expressions);
+        const [mood, confidence] = moods.reduce(
+          (max, [key, value]) => (value > max[1] ? [key, value] : max),
+          ["neutral", 0]
+        );
+
+        setDetectionLog((prev) => [...prev, `Detected: ${mood} (${confidence.toFixed(2)})`]);
+
+        if (confidence > 0.7) {
+          setCurrentMood(mood);
+        } else {
+          setCurrentMood("Low confidence detection");
+        }
+      } catch (err) {
+        console.error("Detection error:", err);
+        setDetectionLog((prev) => [...prev, `Error: ${err.message}`]);
+      }
+    }, 1500);
+
+    return () => clearInterval(interval);
+  };
+
   return (
     <div className="flex flex-col items-center p-6 min-h-screen bg-gray-50">
       {error && <p className="text-red-600 mb-4">{error}</p>}
@@ -124,20 +184,30 @@ const WebcamFeed = () => {
           autoPlay
           muted
           playsInline
-          width="320"
-          height="190"
-          className={`rounded-xl border shadow ${loading ? "opacity-0" : "opacity-100"}`}
+          width="420"
+          height="210"
+          onPlay={handleVideoOnPlay}
+          className={`rounded-lg shadow-md ${loading ? "opacity-0" : "opacity-100"}`}
         />
+        <canvas
+          id="overlay"
+          className="absolute top-0 left-0 rounded-lg"
+          width="720"
+          height="560"
+        />
+
         {!loading && result === "No face detected" && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <p className="bg-red-500 text-white px-4 py-2 rounded">Please face the camera</p>
+            <p className="bg-red-500 text-white px-4 py-2 rounded">
+              Please face the camera
+            </p>
           </div>
         )}
       </div>
 
       <div className="flex space-x-4 mt-4">
         <button
-          className={`px-6 py-2 rounded-full font-semibold ${
+          className={`px-6 py-2 rounded-full font-semibold hover:scale-110 z-10 relative ${
             mode === "mood" ? "bg-blue-600 text-white" : "bg-gray-200"
           }`}
           onClick={() => {
@@ -150,7 +220,7 @@ const WebcamFeed = () => {
         </button>
         <button
           className={`px-6 py-2 rounded-full font-semibold ${
-            mode === "age" ? "bg-blue-600 text-white" : "bg-gray-200"
+            mode === "age" ? "bg-blue-600 text-white" : "bg-gray-200  z-10 relative"
           }`}
           onClick={() => {
             setMode("age");
