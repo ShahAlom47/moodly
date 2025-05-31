@@ -45,7 +45,7 @@ const Banner = () => {
       </div>
       <div className="absolute inset-0 flex flex-col items-center justify-end z-20 text-white text-center p-4">
         
-    <Link href={"webcam"}>    <button className=" text-white font-bold  border-2 border-white  text-xl  rounded-full px-5 py-1 hover:scale-110  ">Start</button></Link>
+    <Link href={"webcam"}>    <button className=" text-white font-bold  border-2 border-white  text-xl  rounded-full px-5 py-1 hover:scale-110 z-50 absolute insert-x-0 bottom-[10%]  ">Start</button></Link>
       </div>
     </div>
   );
