@@ -5,3 +5,25 @@
 .bb{
     border: solid red 3px;
 }
+
+@keyframes scan-line {
+  0% {
+    top: 10%;
+    opacity: 0.1;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    top: 70%;
+    opacity: 1;
+  }
+  100% {
+    top: 90%;
+    opacity: 0;
+  }
+}
+
+.animate-scan-line {
+  animation: scan-line 1s ease-in-out infinite;
+}
