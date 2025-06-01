@@ -2,20 +2,22 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import * as faceapi from "face-api.js";
-import detectionMessages from "../lib/funnyMessages";
 import MessageDisplay from "./MessageDisplay";
+import  {getEmoji}  from "@/lib/getEmoji";
 
 const WebcamFeed = () => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const animationRef = useRef(null);
+
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mode, setMode] = useState("mood");
   const [result, setResult] = useState("");
-  const [funnyMsg, setFunnyMsg] = useState("");
+  const [message, setMessage] = useState("");
+  const [age, setAge] = useState("");
   const [showNoFaceMessage, setShowNoFaceMessage] = useState(false);
-  const animationRef = useRef(null);
-  const lastMessageRef = useRef("");
 
   useEffect(() => {
     const loadModels = async () => {
@@ -37,11 +39,7 @@ const WebcamFeed = () => {
     const startVideo = () => {
       navigator.mediaDevices
         .getUserMedia({
-          video: {
-            width: 720,
-            height: 560,
-            facingMode: "user",
-          },
+          video: { width: 720, height: 560, facingMode: "user" },
         })
         .then((stream) => {
           if (videoRef.current) {
@@ -63,46 +61,33 @@ const WebcamFeed = () => {
     return () => {
       cancelAnimationFrame(animationRef.current);
       if (videoRef.current?.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
       }
     };
   }, []);
 
-  useEffect(() => {
-    setResult("");
-    setFunnyMsg("");
-    setShowNoFaceMessage(false);
-    lastMessageRef.current = "";
-  }, [mode]);
-
   const startLandmarkDetection = async () => {
     const detect = async () => {
-      if (!videoRef.current || videoRef.current.paused || videoRef.current.ended) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+
+      if (!video || video.paused || video.ended) {
         animationRef.current = requestAnimationFrame(detect);
         return;
       }
 
-      const canvas = canvasRef.current;
-      const video = videoRef.current;
       const ctx = canvas.getContext("2d");
-      
-      // Clear previous drawings
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       try {
-        // Detect face with landmarks only
         const detection = await faceapi
-          .detectSingleFace(
-            video,
-            new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 })
-          )
+          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 }))
           .withFaceLandmarks();
 
         if (detection) {
-          // Draw landmarks
           const displaySize = { width: video.width, height: video.height };
-          const resizedDetection = faceapi.resizeResults(detection, displaySize);
-          faceapi.draw.drawFaceLandmarks(canvas, resizedDetection);
+          const resized = faceapi.resizeResults(detection, displaySize);
+          faceapi.draw.drawFaceLandmarks(canvas, resized);
           setShowNoFaceMessage(false);
         } else {
           setShowNoFaceMessage(true);
@@ -118,33 +103,27 @@ const WebcamFeed = () => {
   };
 
   const handleCheck = async () => {
-    if (!videoRef.current) return;
+    const video = videoRef.current;
+    if (!video) return;
 
     try {
-      // Full detection with all features
       const detection = await faceapi
-        .detectSingleFace(
-          videoRef.current,
-          new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 })
-        )
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 }))
         .withFaceLandmarks()
         .withFaceExpressions()
         .withAgeAndGender();
 
       if (!detection) {
         setResult("No face detected");
-        setFunnyMsg("");
+        setMessage("");
         return;
       }
 
-      const displaySize = { 
-        width: videoRef.current.width, 
-        height: videoRef.current.height 
-      };
-      const resizedDetection = faceapi.resizeResults(detection, displaySize);
+      const displaySize = { width: video.width, height: video.height };
+      const resized = faceapi.resizeResults(detection, displaySize);
 
       if (mode === "mood") {
-        const expressions = resizedDetection.expressions;
+        const expressions = resized.expressions;
         const [mood, confidence] = Object.entries(expressions).reduce(
           (max, [key, value]) => (value > max[1] ? [key, value] : max),
           ["neutral", 0]
@@ -152,58 +131,27 @@ const WebcamFeed = () => {
 
         if (confidence > 0.7) {
           setResult(`${getEmoji(mood)} ${mood} (${(confidence * 100).toFixed(1)}%)`);
-          setFunnyMsg(detectionMessages.mood[mood] || "");
+          setMessage(mood);
         } else {
           setResult("Low confidence detection");
-          setFunnyMsg("");
+          setMessage("");
         }
       } else if (mode === "age") {
-        const { age, gender } = resizedDetection;
-        const ageRounded = Math.round(age);
-        setResult(`👤 ${gender}, Age: ${ageRounded}`);
-        const uniqueMsg = getUniqueFunnyMessage(detectionMessages.age);
-        setFunnyMsg(uniqueMsg);
+        const { age, gender } = resized;
+        setResult(`👤 ${gender}, Age: ${Math.round(age)}`);
+        setAge(Math.round(age));
+        setMessage("age");
       }
     } catch (err) {
       console.error("Detection error:", err);
       setResult("Detection failed");
-      setFunnyMsg("");
+      setMessage("");
     }
   };
 
-  const getUniqueFunnyMessage = (messages) => {
-    let newMsg = "";
-    const attempts = 5;
-    for (let i = 0; i < attempts; i++) {
-      const candidate = messages[Math.floor(Math.random() * messages.length)];
-      if (candidate !== lastMessageRef.current) {
-        newMsg = candidate;
-        break;
-      }
-    }
-    lastMessageRef.current = newMsg || messages[0];
-    return lastMessageRef.current;
-  };
 
-  const getEmoji = (mood) => {
-    const map = {
-      happy: "😊",
-      sad: "😢",
-      angry: "😠",
-      fearful: "😨",
-      disgusted: "🤢",
-      surprised: "😲",
-      neutral: "😐",
-    };
-    return map[mood] || "👀";
-  };
-
-  const handleModeChange = (selectedMode) => {
-    setMode(selectedMode);
-  };
 
   const bgColor = mode === "mood" ? "bg-blue-100" : "bg-yellow-100";
-  console.log(result)
 
   return (
     <div className={`flex flex-col items-center p-6 min-h-screen ${bgColor}`}>
@@ -228,12 +176,9 @@ const WebcamFeed = () => {
           width="720"
           height="560"
         />
-
         {showNoFaceMessage && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <p className="bg-red-500 text-white px-4 py-2 rounded">
-              Please face the camera
-            </p>
+            <p className="bg-red-500 text-white px-4 py-2 rounded">Please face the camera</p>
           </div>
         )}
       </div>
@@ -243,7 +188,7 @@ const WebcamFeed = () => {
           className={`px-6 py-2 rounded-full font-semibold ${
             mode === "mood" ? "bg-blue-600 text-white" : "bg-gray-200"
           }`}
-          onClick={() => handleModeChange("mood")}
+          onClick={() => setMode("mood")}
         >
           Mood
         </button>
@@ -251,7 +196,7 @@ const WebcamFeed = () => {
           className={`px-6 py-2 rounded-full font-semibold ${
             mode === "age" ? "bg-yellow-500 text-white" : "bg-gray-200"
           }`}
-          onClick={() => handleModeChange("age")}
+          onClick={() => setMode("age")}
         >
           Age
         </button>
@@ -268,13 +213,7 @@ const WebcamFeed = () => {
         {result && (
           <>
             <p className="text-xl font-bold text-gray-700">{result}</p>
-            {funnyMsg && (
-              <MessageDisplay
-                type={mode}
-                moodType={mode === "mood" ? result.split(" ")[1] : undefined}
-                message={funnyMsg}
-              />
-            )}
+            <MessageDisplay message={message} age={age} />
           </>
         )}
       </div>
