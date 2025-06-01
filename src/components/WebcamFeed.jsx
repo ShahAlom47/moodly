@@ -4,14 +4,15 @@ import React, { useEffect, useRef, useState } from "react";
 import * as faceapi from "face-api.js";
 import MessageDisplay from "./MessageDisplay";
 import { getEmoji } from "@/lib/getEmoji";
+import useResponsiveFaceApiSize from "@/hooks/useResponsiveFaceApiSize";
 
 const WebcamFeed = () => {
-  // Refs
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
 
-  // State
+  const { width, height, } = useResponsiveFaceApiSize();
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mode, setMode] = useState("mood");
@@ -20,14 +21,12 @@ const WebcamFeed = () => {
   const [age, setAge] = useState(0);
   const [showNoFaceMessage, setShowNoFaceMessage] = useState(false);
   const [modelsLoaded, setModelsLoaded] = useState(false);
-  const[showScanLine, setShowScanLine] = useState(false);
+  const [showScanLine, setShowScanLine] = useState(false);
 
-  // Initialize face detection
   useEffect(() => {
     const loadModelsAndStartVideo = async () => {
       setShowScanLine(true);
       try {
-        // Load all required models
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
           faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
@@ -45,7 +44,7 @@ const WebcamFeed = () => {
     const startVideo = () => {
       navigator.mediaDevices
         .getUserMedia({
-          video: { width: 720, height: 560, facingMode: "user" },
+          video: { width, height, facingMode: "user" },
         })
         .then((stream) => {
           if (videoRef.current) {
@@ -72,9 +71,8 @@ const WebcamFeed = () => {
         videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [modelsLoaded]);
+  }, [modelsLoaded, width, height]);
 
-  // Face detection and landmark drawing
   const detectFaces = () => {
     if (!videoRef.current || !canvasRef.current) return;
 
@@ -84,7 +82,6 @@ const WebcamFeed = () => {
 
     const processFrame = async () => {
       try {
-        // Set canvas dimensions to match video
         if (
           canvas.width !== video.videoWidth ||
           canvas.height !== video.videoHeight
@@ -95,19 +92,16 @@ const WebcamFeed = () => {
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Detect faces with landmarks
         const detections = await faceapi
           .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
           .withFaceLandmarks();
 
         if (detections.length > 0) {
-          // Prepare display dimensions
           const displaySize = {
             width: video.videoWidth,
             height: video.videoHeight,
           };
 
-          // Resize detections and draw landmarks
           const resizedDetections = faceapi.resizeResults(
             detections,
             displaySize
@@ -131,12 +125,10 @@ const WebcamFeed = () => {
     processFrame();
   };
 
-  // Analyze face (mood/age)
   const analyzeFace = async () => {
-setShowScanLine(true);
-setInterval(() => {
-  
-}, 2500);
+    setShowScanLine(true);
+    setInterval(() => {}, 2500);
+
     setResult("");
     if (!videoRef.current) return;
 
@@ -155,7 +147,6 @@ setInterval(() => {
         return;
       }
 
-      // Get display dimensions
       const displaySize = {
         width: videoRef.current.videoWidth,
         height: videoRef.current.videoHeight,
@@ -188,18 +179,15 @@ setInterval(() => {
       console.error("Analysis error:", err);
       setResult("Detection failed");
       setMessage("");
-    }finally {
+    } finally {
       setShowScanLine(false);
     }
   };
 
-  // UI styling
   const bgColor = mode === "mood" ? "bg-blue-100" : "bg-yellow-100";
 
   return (
     <div className={`flex flex-col items-center p-6 min-h-screen ${bgColor}`}>
-        
-      {/* Error messages */}
       {error && (
         <p className="text-red-600 mb-4 bg-white p-3 rounded-lg shadow-md">
           {error}
@@ -211,25 +199,26 @@ setInterval(() => {
         </p>
       )}
 
-      {/* Video and canvas */}
-      <div className="relative bb h-fit">
+      <div className="relative  h-fit">
         <video
           ref={videoRef}
           autoPlay
           muted
           playsInline
-          className={`rounded-lg shadow-md bb ${
+          className={`rounded-lg shadow-md  ${
             loading ? "opacity-0" : "opacity-100"
           }`}
-          style={{ width: "720px", height: "560px" }}
+          style={{ width: `${width}px`, height: `${height}px` }}
         />
-        {/* scaning animation */}
-       {showScanLine &&  <div className="absolute left-[10%] right-[10%] w-[75%] mx-auto h-[20px] bg-gradient-to-r from-green-500 via-green-900 to-green-400 animate-scan-line blur-lg z-50"></div>
-}
+
+        {showScanLine && (
+          <div className="absolute left-[10%] right-[10%] w-[75%] mx-auto h-[20px] bg-gradient-to-r from-green-500 via-green-900 to-green-400 animate-scan-line blur-lg z-50"></div>
+        )}
+
         <canvas
           ref={canvasRef}
           className="absolute top-0 left-0 rounded-lg pointer-events-none z-40"
-          style={{ width: "720px", height: "560px" }}
+          style={{ width: `${width}px`, height: `${height}px` }}
         />
 
         {showNoFaceMessage && (
@@ -241,7 +230,6 @@ setInterval(() => {
         )}
       </div>
 
-      {/* Mode selection */}
       <div className="flex space-x-4 mt-4">
         <button
           className={`px-6 py-2 rounded-full font-semibold ${
@@ -261,7 +249,6 @@ setInterval(() => {
         </button>
       </div>
 
-      {/* Results */}
       <div className="mt-6 text-center max-w-md">
         <button
           className="px-6 py-2 bg-green-600 text-white rounded-full mb-4 hover:bg-green-700"
