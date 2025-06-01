@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import * as faceapi from "face-api.js";
-import detectionMessages from "../lib/funnyMessages"; // Adjust path
+import detectionMessages from "../lib/funnyMessages";
 import MessageDisplay from "./MessageDisplay";
 
 const WebcamFeed = () => {
@@ -10,13 +10,12 @@ const WebcamFeed = () => {
   const canvasRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [mode, setMode] = useState("mood"); // mood | age
+  const [mode, setMode] = useState("mood");
   const [result, setResult] = useState("");
-  const [showCheck, setShowCheck] = useState(false);
   const [funnyMsg, setFunnyMsg] = useState("");
+  const [showNoFaceMessage, setShowNoFaceMessage] = useState(false);
+  const animationRef = useRef(null);
   const lastMessageRef = useRef("");
-  const lastDetectionTimeRef = useRef(0); // for throttling result updates
-  const lastResultRef = useRef(null);
 
   useEffect(() => {
     const loadModels = async () => {
@@ -47,7 +46,10 @@ const WebcamFeed = () => {
         .then((stream) => {
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            setLoading(false);
+            videoRef.current.onloadedmetadata = () => {
+              setLoading(false);
+              startLandmarkDetection();
+            };
           }
         })
         .catch((err) => {
@@ -57,114 +59,118 @@ const WebcamFeed = () => {
     };
 
     loadModels();
+
+    return () => {
+      cancelAnimationFrame(animationRef.current);
+      if (videoRef.current?.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      }
+    };
   }, []);
 
-  // Reset on mode change
   useEffect(() => {
     setResult("");
     setFunnyMsg("");
-    setShowCheck(false);
+    setShowNoFaceMessage(false);
     lastMessageRef.current = "";
-    lastResultRef.current = null;
   }, [mode]);
 
-  // Main detection loop
-  useEffect(() => {
-    if (loading || error) return;
-
-    let intervalId;
-
-    const detectAndDraw = async () => {
+  const startLandmarkDetection = async () => {
+    const detect = async () => {
       if (!videoRef.current || videoRef.current.paused || videoRef.current.ended) {
+        animationRef.current = requestAnimationFrame(detect);
         return;
       }
 
       const canvas = canvasRef.current;
       const video = videoRef.current;
+      const ctx = canvas.getContext("2d");
+      
+      // Clear previous drawings
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Detect face with all features
+      try {
+        // Detect face with landmarks only
+        const detection = await faceapi
+          .detectSingleFace(
+            video,
+            new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 })
+          )
+          .withFaceLandmarks();
+
+        if (detection) {
+          // Draw landmarks
+          const displaySize = { width: video.width, height: video.height };
+          const resizedDetection = faceapi.resizeResults(detection, displaySize);
+          faceapi.draw.drawFaceLandmarks(canvas, resizedDetection);
+          setShowNoFaceMessage(false);
+        } else {
+          setShowNoFaceMessage(true);
+        }
+      } catch (err) {
+        console.error("Landmark detection error:", err);
+      }
+
+      animationRef.current = requestAnimationFrame(detect);
+    };
+
+    animationRef.current = requestAnimationFrame(detect);
+  };
+
+  const handleCheck = async () => {
+    if (!videoRef.current) return;
+
+    try {
+      // Full detection with all features
       const detection = await faceapi
         .detectSingleFace(
-          video,
+          videoRef.current,
           new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 })
         )
         .withFaceLandmarks()
         .withFaceExpressions()
         .withAgeAndGender();
 
-      const ctx = canvas.getContext("2d");
-      // Clear previous drawings
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
       if (!detection) {
         setResult("No face detected");
-        setShowCheck(false);
         setFunnyMsg("");
-        lastResultRef.current = null;
         return;
       }
 
-      // Resize detection box and landmarks to canvas size
-      const displaySize = { width: video.width, height: video.height };
+      const displaySize = { 
+        width: videoRef.current.width, 
+        height: videoRef.current.height 
+      };
       const resizedDetection = faceapi.resizeResults(detection, displaySize);
 
-      // Draw box & landmarks
-      faceapi.draw.drawDetections(canvas, resizedDetection);
-      faceapi.draw.drawFaceLandmarks(canvas, resizedDetection);
+      if (mode === "mood") {
+        const expressions = resizedDetection.expressions;
+        const [mood, confidence] = Object.entries(expressions).reduce(
+          (max, [key, value]) => (value > max[1] ? [key, value] : max),
+          ["neutral", 0]
+        );
 
-      // Throttle result update to max once per second
-      const now = Date.now();
-      if (now - lastDetectionTimeRef.current > 1000) {
-        lastDetectionTimeRef.current = now;
-
-        if (mode === "mood") {
-          const expressions = resizedDetection.expressions;
-          const moods = Object.entries(expressions);
-          const [mood, confidence] = moods.reduce(
-            (max, [key, value]) => (value > max[1] ? [key, value] : max),
-            ["neutral", 0]
-          );
-
-          if (confidence > 0.7) {
-            const newResult = `${getEmoji(mood)} ${mood} (${(confidence * 100).toFixed(1)}%)`;
-            if (newResult !== lastResultRef.current) {
-              setResult(newResult);
-              setFunnyMsg(detectionMessages.mood[mood] || "");
-              setShowCheck(true);
-              lastResultRef.current = newResult;
-              lastMessageRef.current = detectionMessages.mood[mood] || "";
-            }
-          } else {
-            setResult("Low confidence detection");
-            setFunnyMsg("");
-            setShowCheck(false);
-            lastResultRef.current = null;
-          }
-        } else if (mode === "age") {
-          const { age, gender } = resizedDetection;
-          const ageRounded = Math.round(age);
-          const newResult = `👤 ${gender}, Age: ${ageRounded}`;
-          if (newResult !== lastResultRef.current) {
-            setResult(newResult);
-            const messages = detectionMessages.age;
-            const uniqueMsg = getUniqueFunnyMessage(messages);
-            setFunnyMsg(uniqueMsg);
-            lastMessageRef.current = uniqueMsg;
-            setShowCheck(true);
-            lastResultRef.current = newResult;
-          }
+        if (confidence > 0.7) {
+          setResult(`${getEmoji(mood)} ${mood} (${(confidence * 100).toFixed(1)}%)`);
+          setFunnyMsg(detectionMessages.mood[mood] || "");
+        } else {
+          setResult("Low confidence detection");
+          setFunnyMsg("");
         }
+      } else if (mode === "age") {
+        const { age, gender } = resizedDetection;
+        const ageRounded = Math.round(age);
+        setResult(`👤 ${gender}, Age: ${ageRounded}`);
+        const uniqueMsg = getUniqueFunnyMessage(detectionMessages.age);
+        setFunnyMsg(uniqueMsg);
       }
-    };
+    } catch (err) {
+      console.error("Detection error:", err);
+      setResult("Detection failed");
+      setFunnyMsg("");
+    }
+  };
 
-    intervalId = setInterval(detectAndDraw, 200); // run every 200ms
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [loading, error, mode]);
-
-  // Get unique funny message function (unchanged)
   const getUniqueFunnyMessage = (messages) => {
     let newMsg = "";
     const attempts = 5;
@@ -197,16 +203,13 @@ const WebcamFeed = () => {
   };
 
   const bgColor = mode === "mood" ? "bg-blue-100" : "bg-yellow-100";
+  console.log(result)
 
   return (
-    <div
-      className={`flex flex-col items-center p-6 min-h-screen transition-colors duration-500 ${bgColor}`}
-    >
+    <div className={`flex flex-col items-center p-6 min-h-screen ${bgColor}`}>
       {error && <p className="text-red-600 mb-4">{error}</p>}
       {loading && !error && (
-        <p className="text-blue-500 font-semibold mb-4">
-          Loading camera and models...
-        </p>
+        <p className="text-blue-500 font-semibold mb-4">Loading camera and models...</p>
       )}
 
       <div className="relative">
@@ -226,7 +229,7 @@ const WebcamFeed = () => {
           height="560"
         />
 
-        {!loading && result === "No face detected" && (
+        {showNoFaceMessage && (
           <div className="absolute inset-0 flex items-center justify-center">
             <p className="bg-red-500 text-white px-4 py-2 rounded">
               Please face the camera
@@ -237,7 +240,7 @@ const WebcamFeed = () => {
 
       <div className="flex space-x-4 mt-4">
         <button
-          className={`px-6 py-2 rounded-full font-semibold hover:scale-110 transition-transform z-10 ${
+          className={`px-6 py-2 rounded-full font-semibold ${
             mode === "mood" ? "bg-blue-600 text-white" : "bg-gray-200"
           }`}
           onClick={() => handleModeChange("mood")}
@@ -245,7 +248,7 @@ const WebcamFeed = () => {
           Mood
         </button>
         <button
-          className={`px-6 py-2 rounded-full font-semibold hover:scale-110 transition-transform z-10 ${
+          className={`px-6 py-2 rounded-full font-semibold ${
             mode === "age" ? "bg-yellow-500 text-white" : "bg-gray-200"
           }`}
           onClick={() => handleModeChange("age")}
@@ -254,30 +257,27 @@ const WebcamFeed = () => {
         </button>
       </div>
 
-      {result && (
-        <div className="mt-6 text-center max-w-md">
-          <p className="text-xl font-bold text-gray-700">{result}</p>
-          {funnyMsg && (
-            <MessageDisplay
-              type={mode}
-              moodType={mode === "mood" ? result.split(" ")[1] : undefined}
-            />
-          )}
+      <div className="mt-6 text-center max-w-md">
+        <button
+          className="px-6 py-2 bg-green-600 text-white rounded-full mb-4 hover:bg-green-700 transition-colors"
+          onClick={handleCheck}
+        >
+          {result ? "Check Again" : "Check"}
+        </button>
 
-          {showCheck && (
-            <button
-              className="mt-4 px-6 py-2 bg-green-600 text-white rounded-full hover:bg-green-700"
-              onClick={() => {
-                // manual detection trigger on button click
-                // for simplicity just reset lastDetectionTime to force immediate update
-                lastDetectionTimeRef.current = 0;
-              }}
-            >
-              Check Again
-            </button>
-          )}
-        </div>
-      )}
+        {result && (
+          <>
+            <p className="text-xl font-bold text-gray-700">{result}</p>
+            {funnyMsg && (
+              <MessageDisplay
+                type={mode}
+                moodType={mode === "mood" ? result.split(" ")[1] : undefined}
+                message={funnyMsg}
+              />
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 };
