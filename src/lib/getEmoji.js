@@ -1,6 +1,5 @@
 
 export const getEmoji = (mood) => {
-    console.log("getEmoji called with mood:", mood);
     const map = {
       happy: "😊",
       sad: "😢",

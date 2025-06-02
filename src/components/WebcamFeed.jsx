@@ -5,13 +5,14 @@ import * as faceapi from "face-api.js";
 import MessageDisplay from "./MessageDisplay";
 import { getEmoji } from "@/lib/getEmoji";
 import useResponsiveFaceApiSize from "@/hooks/useResponsiveFaceApiSize";
+import EmojiRain from "./EmojiRain";
 
 const WebcamFeed = () => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
 
-  const { width, height, } = useResponsiveFaceApiSize();
+  const { width, height } = useResponsiveFaceApiSize();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -22,6 +23,7 @@ const WebcamFeed = () => {
   const [showNoFaceMessage, setShowNoFaceMessage] = useState(false);
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [showScanLine, setShowScanLine] = useState(false);
+  const [startRain, setStartRain] = useState(false);
 
   useEffect(() => {
     const loadModelsAndStartVideo = async () => {
@@ -127,9 +129,8 @@ const WebcamFeed = () => {
 
   const analyzeFace = async () => {
     setShowScanLine(true);
-    setInterval(() => {}, 2500);
-
     setResult("");
+
     if (!videoRef.current) return;
 
     try {
@@ -144,6 +145,7 @@ const WebcamFeed = () => {
       if (!detection) {
         setResult("No face detected");
         setMessage("");
+        setStartRain(false);
         return;
       }
 
@@ -165,20 +167,28 @@ const WebcamFeed = () => {
             `${getEmoji(mood)} ${mood} (${(confidence * 100).toFixed(1)}%)`
           );
           setMessage(mood);
+          setStartRain(true);
+          // Always stop the rain a bit after it starts
+          setTimeout(() => {
+            setStartRain(false);
+          }, 5000);
         } else {
           setResult("Can't determine mood");
           setMessage("");
+          setStartRain(false);
         }
       } else {
         const { age, gender } = resized;
         setResult(`👤 ${gender}, Age: ${Math.round(age)}`);
         setAge(Math.round(age));
         setMessage("age");
+        setStartRain(false);
       }
     } catch (err) {
       console.error("Analysis error:", err);
       setResult("Detection failed");
       setMessage("");
+      setStartRain(false);
     } finally {
       setShowScanLine(false);
     }
@@ -188,6 +198,7 @@ const WebcamFeed = () => {
 
   return (
     <div className={`flex flex-col items-center p-6 min-h-screen ${bgColor}`}>
+      <EmojiRain mood={message} running={startRain} />
       {error && (
         <p className="text-red-600 mb-4 bg-white p-3 rounded-lg shadow-md">
           {error}
