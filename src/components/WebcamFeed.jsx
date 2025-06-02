@@ -6,6 +6,7 @@ import MessageDisplay from "./MessageDisplay";
 import { getEmoji } from "@/lib/getEmoji";
 import useResponsiveFaceApiSize from "@/hooks/useResponsiveFaceApiSize";
 import EmojiRain from "./EmojiRain";
+import getBgByMood from "@/lib/getBgByMood";
 
 const WebcamFeed = () => {
   const videoRef = useRef(null);
@@ -194,7 +195,7 @@ const WebcamFeed = () => {
     }
   };
 
-  const bgColor = mode === "mood" ? "bg-blue-100" : "bg-yellow-100";
+  const bgColor = mode === "mood" ? (result? getBgByMood(message):"bg-blue-100") : "bg-yellow-100";
 
   return (
     <div className={`flex flex-col items-center p-6 min-h-screen ${bgColor}`}>

@@ -42,7 +42,7 @@
 .emoji {
   position: absolute;
 font-size: 3rem;
-  animation: fall 5s linear  infinite;
+  animation: fall 3s linear  infinite;
 }
 
 @keyframes fall {

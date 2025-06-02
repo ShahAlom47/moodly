@@ -1,15 +1,7 @@
 'use client';
+import { getEmoji } from '@/lib/getEmoji';
 import { useEffect, useState, useRef } from 'react';
 
-const moodEmojis = {
-  happy: "😊",
-  sad: "😢",
-  angry: "😠",
-  fearful: "😨",
-  disgusted: "🤢",
-  surprised: "😲",
-  neutral: "😐",
-};
 
 export default function EmojiRain({ mood = 'happy', running = false }) {
   const [emojis, setEmojis] = useState([]);
@@ -17,7 +9,7 @@ export default function EmojiRain({ mood = 'happy', running = false }) {
 
   console.log(running, mood);
 
-  const selectedEmoji = moodEmojis[mood] || '❓';
+  const selectedEmoji = getEmoji(mood) || '❓';
 
   useEffect(() => {
     if (running) {
