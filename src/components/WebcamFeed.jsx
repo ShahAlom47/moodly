@@ -195,23 +195,31 @@ const WebcamFeed = () => {
     }
   };
 
-  const bgColor = mode === "mood" ? (result? getBgByMood(message):"bg-blue-100") : "bg-yellow-100";
+  const handleModeChange = (newMode) => {
+    setMode(newMode); 
+    setResult("");
+    setMessage("");
+    setStartRain(false);
+  };
+
+  const bgColor =
+    mode === "mood"
+      ? result
+        ? getBgByMood(message)
+        : "bg-blue-100"
+      : "bg-yellow-100";
 
   return (
     <div className={`flex flex-col items-center p-6 min-h-screen ${bgColor}`}>
       <EmojiRain mood={message} running={startRain} />
-      {error && (
-        <p className="text-red-600 mb-4 bg-white p-3 rounded-lg shadow-md">
-          {error}
-        </p>
-      )}
-      {loading && !error && (
-        <p className="text-blue-500 font-semibold mb-4">
-          Loading camera and models...
-        </p>
-      )}
+    
 
-      <div className="relative  h-fit">
+      <div className="relative  flex justify-center items-center  h-fit">
+        {loading && !error && (
+          <p className=" absolute left-2/6 text-blue-500 font-semibold mb-4 text-lg  mx-auto">
+            Loading camera and models...
+          </p>
+        )}
         <video
           ref={videoRef}
           autoPlay
@@ -241,13 +249,18 @@ const WebcamFeed = () => {
           </div>
         )}
       </div>
+        {error && (
+        <p className="text-red-600 mb-4 bg-white p-3 rounded-lg shadow-md  my-4">
+          {error}
+        </p>
+      )}
 
       <div className="flex space-x-4 mt-4">
         <button
           className={`px-6 py-2 rounded-full font-semibold ${
             mode === "mood" ? "bg-blue-600 text-white" : "bg-gray-200"
           }`}
-          onClick={() => setMode("mood")}
+          onClick={() => handleModeChange("mood")}
         >
           Mood
         </button>
@@ -255,7 +268,7 @@ const WebcamFeed = () => {
           className={`px-6 py-2 rounded-full font-semibold ${
             mode === "age" ? "bg-yellow-500 text-white" : "bg-gray-200"
           }`}
-          onClick={() => setMode("age")}
+          onClick={() => handleModeChange("age")}
         >
           Age
         </button>

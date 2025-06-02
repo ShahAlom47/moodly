@@ -13,7 +13,7 @@ const useResponsiveFaceApiSize = () => {
       console.log(`Window width: ${width}`); // Debugging log
 
       if (width >= 1024) {
-        setSize({ width: 720, height: 560,});
+        setSize({ width: 720, height: 400,});
       } else if (width >= 768) {
         setSize({ width: 640, height: 480,}); // Default webcam resolution
       } else if (width >= 640) {
