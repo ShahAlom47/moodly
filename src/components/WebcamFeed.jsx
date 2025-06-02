@@ -7,10 +7,12 @@ import { getEmoji } from "@/lib/getEmoji";
 import useResponsiveFaceApiSize from "@/hooks/useResponsiveFaceApiSize";
 import EmojiRain from "./EmojiRain";
 import getBgByMood from "@/lib/getBgByMood";
+import playSoundByMood from "@/lib/playSoundByMood";
+import Link from "next/link";
+import Heading from "./Heading";
 
 const WebcamFeed = () => {
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
   const animationRef = useRef(null);
 
   const { width, height } = useResponsiveFaceApiSize();
@@ -47,7 +49,12 @@ const WebcamFeed = () => {
     const startVideo = () => {
       navigator.mediaDevices
         .getUserMedia({
-          video: { width, height, facingMode: "user" },
+          // video: { width, height, facingMode: "user" },
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: "user",
+          },
         })
         .then((stream) => {
           if (videoRef.current) {
@@ -77,43 +84,17 @@ const WebcamFeed = () => {
   }, [modelsLoaded, width, height]);
 
   const detectFaces = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current) return;
 
     const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
     const processFrame = async () => {
       try {
-        if (
-          canvas.width !== video.videoWidth ||
-          canvas.height !== video.videoHeight
-        ) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-        }
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
         const detections = await faceapi
           .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
           .withFaceLandmarks();
 
         if (detections.length > 0) {
-          const displaySize = {
-            width: video.videoWidth,
-            height: video.videoHeight,
-          };
-
-          const resizedDetections = faceapi.resizeResults(
-            detections,
-            displaySize
-          );
-          faceapi.draw.drawFaceLandmarks(canvas, resizedDetections, {
-            lineWidth: 2,
-            color: "cyan",
-          });
-
           setShowNoFaceMessage(false);
         } else {
           setShowNoFaceMessage(true);
@@ -131,6 +112,8 @@ const WebcamFeed = () => {
   const analyzeFace = async () => {
     setShowScanLine(true);
     setResult("");
+    setMessage("");
+    setStartRain(false);
 
     if (!videoRef.current) return;
 
@@ -144,20 +127,13 @@ const WebcamFeed = () => {
         .withAgeAndGender();
 
       if (!detection) {
-        setResult("No face detected");
+        setResult("🚫 No face detected. Please look at the camera.");
         setMessage("");
-        setStartRain(false);
         return;
       }
 
-      const displaySize = {
-        width: videoRef.current.videoWidth,
-        height: videoRef.current.videoHeight,
-      };
-      const resized = faceapi.resizeResults(detection, displaySize);
-
       if (mode === "mood") {
-        const expressions = resized.expressions;
+        const expressions = detection.expressions;
         const [mood, confidence] = Object.entries(expressions).reduce(
           (max, [key, value]) => (value > max[1] ? [key, value] : max),
           ["neutral", 0]
@@ -168,26 +144,33 @@ const WebcamFeed = () => {
             `${getEmoji(mood)} ${mood} (${(confidence * 100).toFixed(1)}%)`
           );
           setMessage(mood);
+          playSoundByMood(mood);
           setStartRain(true);
-          // Always stop the rain a bit after it starts
-          setTimeout(() => {
-            setStartRain(false);
-          }, 5000);
+          setTimeout(() => setStartRain(false), 5000);
         } else {
-          setResult("Can't determine mood");
+          setResult("😕 Unable to confidently determine mood.");
           setMessage("");
           setStartRain(false);
         }
-      } else {
-        const { age, gender } = resized;
-        setResult(`👤 ${gender}, Age: ${Math.round(age)}`);
+      } else if (mode === "age") {
+        const { age, gender, detection: faceBox } = detection;
+
+        // Check face detection score
+        if (!age || !gender || faceBox.score < 0.7) {
+          setResult("🚫 No clear face detected to estimate age/gender.");
+          setMessage("");
+          return;
+        }
+
+        const genderIcon = gender === "male" ? "👨" : "👩";
+        setResult(`${genderIcon} ${gender}, Age: ${Math.round(age)}`);
         setAge(Math.round(age));
         setMessage("age");
         setStartRain(false);
       }
     } catch (err) {
       console.error("Analysis error:", err);
-      setResult("Detection failed");
+      setResult("❌ Detection failed. Please try again.");
       setMessage("");
       setStartRain(false);
     } finally {
@@ -196,7 +179,7 @@ const WebcamFeed = () => {
   };
 
   const handleModeChange = (newMode) => {
-    setMode(newMode); 
+    setMode(newMode);
     setResult("");
     setMessage("");
     setStartRain(false);
@@ -210,13 +193,13 @@ const WebcamFeed = () => {
       : "bg-yellow-100";
 
   return (
-    <div className={`flex flex-col items-center p-6 min-h-screen ${bgColor}`}>
+    <div className={`flex flex-col items-center min-h-screen ${bgColor}`}>
+      <Heading />
       <EmojiRain mood={message} running={startRain} />
-    
 
-      <div className="relative  flex justify-center items-center  h-fit">
+      <div className="relative flex justify-center items-center h-fit">
         {loading && !error && (
-          <p className=" absolute left-2/6 text-blue-500 font-semibold mb-4 text-lg  mx-auto">
+          <p className="absolute left-2/6 text-blue-500 font-semibold mb-4 text-lg mx-auto">
             Loading camera and models...
           </p>
         )}
@@ -225,7 +208,7 @@ const WebcamFeed = () => {
           autoPlay
           muted
           playsInline
-          className={`rounded-lg shadow-md  ${
+          className={`rounded-lg  shadow-md object-cover ${
             loading ? "opacity-0" : "opacity-100"
           }`}
           style={{ width: `${width}px`, height: `${height}px` }}
@@ -235,12 +218,6 @@ const WebcamFeed = () => {
           <div className="absolute left-[10%] right-[10%] w-[75%] mx-auto h-[20px] bg-gradient-to-r from-green-500 via-green-900 to-green-400 animate-scan-line blur-lg z-50"></div>
         )}
 
-        <canvas
-          ref={canvasRef}
-          className="absolute top-0 left-0 rounded-lg pointer-events-none z-40"
-          style={{ width: `${width}px`, height: `${height}px` }}
-        />
-
         {showNoFaceMessage && (
           <div className="absolute inset-0 flex items-center justify-center">
             <p className="bg-red-500 text-white px-4 py-2 rounded-lg shadow-md">
@@ -249,24 +226,29 @@ const WebcamFeed = () => {
           </div>
         )}
       </div>
-        {error && (
-        <p className="text-red-600 mb-4 bg-white p-3 rounded-lg shadow-md  my-4">
+
+      {error && (
+        <p className="text-red-600 mb-4 bg-white p-3 rounded-lg shadow-md my-4">
           {error}
         </p>
       )}
 
-      <div className="flex space-x-4 mt-4">
+      <div className="flex mt-4 bg-[#005eff] border border-[#005eff] rounded-full shadow-md">
         <button
-          className={`px-6 py-2 rounded-full font-semibold ${
-            mode === "mood" ? "bg-blue-600 text-white" : "bg-gray-200"
+          className={`px-6 py-1 rounded-l-full font-semibold w-20 transition-all duration-300 ease-in-out ${
+            mode === "mood"
+              ? "bg-blue-600 text-white shadow-inner hover:bg-blue-700"
+              : "bg-gray-200 text-black hover:bg-blue-200"
           }`}
           onClick={() => handleModeChange("mood")}
         >
           Mood
         </button>
         <button
-          className={`px-6 py-2 rounded-full font-semibold ${
-            mode === "age" ? "bg-yellow-500 text-white" : "bg-gray-200"
+          className={`px-6 py-1 rounded-r-full font-semibold w-20 transition-all duration-300 ease-in-out ${
+            mode === "age"
+              ? "bg-blue-600 text-white shadow-inner hover:bg-blue-700"
+              : "bg-gray-200 text-black hover:bg-blue-200"
           }`}
           onClick={() => handleModeChange("age")}
         >
@@ -276,7 +258,7 @@ const WebcamFeed = () => {
 
       <div className="mt-6 text-center max-w-md">
         <button
-          className="px-6 py-2 bg-green-600 text-white rounded-full mb-4 hover:bg-green-700"
+          className="px-6 py-1 bg-green-600 text-white rounded-full mb-4 hover:bg-green-700"
           onClick={analyzeFace}
         >
           {result ? "Check Again" : "Check"}
@@ -289,6 +271,13 @@ const WebcamFeed = () => {
           </div>
         )}
       </div>
+
+      <Link
+        href={"/"}
+        className="bg-gray-500 my-5 rounded-full text-sm px-5 py-1 border border-white text-white hover:bg-gray-600"
+      >
+        Back
+      </Link>
     </div>
   );
 };

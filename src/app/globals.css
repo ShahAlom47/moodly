@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 .bb{
-    border: solid red 3px;
+    border: solid #005eff 3px;
 }
 
 @keyframes scan-line {
