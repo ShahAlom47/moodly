@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# MOODLY 😄🎭
+Live : https://moodly-nu.vercel.app/
 
-## Getting Started
+**MOODLY** is a Real-time Emotion and Face Detection App built using **Next.js** and **face-api.js**.
 
-First, run the development server:
+The app uses your camera to scan your face and detects **age**, **gender** (male/female), and **emotion** — then responds with a fun **sound**, **emoji rain**, and a **funny message** based on your detected emotion.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## ✨ Features
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+- Real-time **Face Detection**
+- Detects **Age** and **Gender**
+- Recognizes **Emotion** (Happy, Sad, Angry, Surprised, etc.)
+- Based on emotion:
+  - Play **Sound**
+  - Shows **Emoji Rain**
+  - Displays a **Funny Message**
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 🔘 How It Works
 
-To learn more about Next.js, take a look at the following resources:
+- The camera remains active at all times.
+- When the user clicks the **"Check"** or **"Check Again"** button:
+  - The app detects the user's face through the camera
+  - Uses pre-trained models to predict **age**, **gender**, and **emotion**
+  - Then based on the detected emotion:
+    - A sound is played
+    - Emoji rain appears on the screen
+    - A fun message is displayed
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🧠 Technologies Used
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Next.js**
+- **face-api.js**
+- **TensorFlow.js**
+- **Tailwind CSS** 
+- **HTML5 Video** 
+- **Canvas API** 
