@@ -1,4 +1,4 @@
-# MOODLY 😄🎭
+# MOODLY 😄
 Live : https://moodly-nu.vercel.app/
 
 **MOODLY** is a Real-time Emotion and Face Detection App built using **Next.js** and **face-api.js**.
@@ -7,7 +7,7 @@ The app uses your camera to scan your face and detects **age**, **gender** (male
 
 ---
 
-## ✨ Features
+##  Features
 
 - Real-time **Face Detection**
 - Detects **Age** and **Gender**
@@ -19,7 +19,7 @@ The app uses your camera to scan your face and detects **age**, **gender** (male
 
 ---
 
-## 🔘 How It Works
+##  How It Works
 
 - The camera remains active at all times.
 - When the user clicks the **"Check"** or **"Check Again"** button:
@@ -32,7 +32,7 @@ The app uses your camera to scan your face and detects **age**, **gender** (male
 
 ---
 
-## 🧠 Technologies Used
+##  Technologies Used
 
 - **Next.js**
 - **face-api.js**
